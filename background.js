@@ -1,9 +1,7 @@
-// background.js
 importScripts('rateLimiter.js');
 
 const autosuggestLimiter = new RateLimiter(5, 1000);
 const fetchLimiter = new RateLimiter(2, 500);
-
 let bookDataArray = [];
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -11,6 +9,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     bookDataArray.push(msg.payload);
     console.log('Book info received:', msg.payload);
   }
+
   if (msg.type === 'FETCH_AUTOSUGGEST') {
     autosuggestLimiter.removeToken().then(() => {
       fetch(msg.url)
@@ -20,17 +19,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     return true;
   }
+
   if (msg.type === 'EXPORT_CSV') {
     const csvContent = generateCSV(bookDataArray);
+    const dataUrl = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
     chrome.downloads.download({
       filename: 'book_data.csv',
-      url: URL.createObjectURL(new Blob([csvContent], {type: 'text/csv'}))
+      url: dataUrl
     });
   }
 });
 
 function generateCSV(dataArray) {
-  const headers = ['Title', 'Author', 'Price', 'Rating', 'Reviews', 'BSR', 'Backend Keywords'];
+  const headers = ['Title','Author','Price','Rating','Reviews','BSR','Backend Keywords'];
   const rows = dataArray.map(data => {
     const book = data.bookData;
     const keywords = data.backendKeywords.join(', ');
@@ -44,6 +45,5 @@ function generateCSV(dataArray) {
       keywords
     ];
   });
-  const csvRows = [headers.join(',')].concat(rows.map(row => row.join(',')));
-  return csvRows.join('\n');
+  return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
 }
