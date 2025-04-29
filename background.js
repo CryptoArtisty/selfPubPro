@@ -1,40 +1,29 @@
 // background.js
-importScripts('rateLimiter.js');
+importScripts('utils/rateLimiter.js');
 
-const autosuggestLimiter = new RateLimiter(5, 1000);
-const fetchLimiter      = new RateLimiter(2, 500);
-let bookDataArray       = [];
+const bookDataArray = [];
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'BOOK_INFO') {
     bookDataArray.push(msg.payload);
-    console.log('Book info received:', msg.payload);
+    console.log('BOOK_INFO stored:', msg.payload);
     return;
   }
 
   if (msg.type === 'EXPORT_CSV') {
-    const csvContent = generateCSV(bookDataArray);
-    const dataUrl = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+    // Build CSV
+    const headers = ['Title','Author','Price','Rating','Reviews','BSR','Backend Keywords'];
+    const rows = bookDataArray.map(d => [
+      d.title, d.author, d.price, d.rating, d.reviews, d.bsr,
+      (d.backendKeywords||[]).join(' | ')
+    ]);
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+
+    // Download via data URI
+    const blobUrl = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
     chrome.downloads.download({
       filename: 'book_data.csv',
-      url: dataUrl
+      url: blobUrl
     });
   }
 });
-
-// Build CSV from the collected payloads
-function generateCSV(dataArray) {
-  const headers = ['Title','Author','Price','Rating','Reviews','BSR','Backend Keywords'];
-  const rows = dataArray.map(data => {
-    return [
-      data.title || '',
-      data.author || '',
-      data.price,
-      data.rating,
-      data.reviews,
-      data.bsr,
-      (data.backendKeywords || []).join(' | ')
-    ];
-  });
-  return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-}
